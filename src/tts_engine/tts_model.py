@@ -1,20 +1,24 @@
 import edge_tts
 import os
-import time
+from datetime import datetime
+
 
 class TextToSpeech:
     def __init__(self, voice="en-US-GuyNeural"):
         self.voice = voice
 
-    async def generate_voice(self, text):
-        """Convert text to speech and save it as a uniquely named MP3 file."""
+    async def generate_voice(self, text, output_file=None):
+        """
+        Convert text to speech and save it as an MP3 file.
+        If no output_file is provided, a unique timestamp-based name is generated.
+        """
         try:
-            # Ensure the directory exists
-            os.makedirs("audio", exist_ok=True)
+            if output_file is None:
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                output_file = f"audio/generated_audio_{timestamp}.mp3"
 
-            # Generate a unique filename based on timestamp
-            timestamp = int(time.time())
-            output_file = f"audio/generated_audio_{timestamp}.mp3"
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
             print("🟡 Starting TTS generation...")
             print(f"🎙 Voice: {self.voice}")

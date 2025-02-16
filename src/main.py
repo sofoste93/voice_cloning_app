@@ -2,6 +2,7 @@ import sys
 import asyncio
 from PyQt6.QtWidgets import QApplication
 import qasync
+
 from src.ui.main_window import MainWindow
 
 
@@ -14,6 +15,7 @@ def main():
     ensure_audio_directory()
     print("✅ Audio directory ensured.")
     app = QApplication(sys.argv)
+
     # Create a qasync event loop that integrates with Qt
     loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(loop)
