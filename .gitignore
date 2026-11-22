@@ -1,0 +1,6 @@
+/.venv-neptune/
+__pycache__/
+/src/audio/neptune_*.wav
+/src/audio/neptune_*.mp3
+/src/audio/.*.part*
+/dist/

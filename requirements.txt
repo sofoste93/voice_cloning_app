@@ -1,5 +1,10 @@
-PyQt6
-numpy
-soundfile
-coqui-tts
-torch
+PyQt6>=6.8,<7
+qasync>=0.27,<1
+edge-tts>=7.3.1,<8
+soundfile>=0.13,<1
+coqui-tts>=0.27.4,<0.29
+torch>=2.8,<2.9
+torchaudio>=2.8,<2.9
+six>=1.17,<2
+# XTTS generation uses the Transformers 4 cache API.
+transformers>=4.57,<5

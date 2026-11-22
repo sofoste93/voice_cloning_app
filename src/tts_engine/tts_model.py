@@ -1,38 +1,73 @@
-import edge_tts
 import os
 from datetime import datetime
+from pathlib import Path
+from uuid import uuid4
+
+SOURCE_AUDIO_DIR = Path(__file__).resolve().parents[1] / "audio"
+AUDIO_DIR = Path(os.environ.get("NEPTUNE_AUDIO_DIR", SOURCE_AUDIO_DIR))
+MODEL_NAME = "tts_models/multilingual/multi-dataset/xtts_v2"
+
+
+def new_recording_path(suffix):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return AUDIO_DIR / f"neptune_{timestamp}_{uuid4().hex[:8]}{suffix}"
 
 
 class TextToSpeech:
     def __init__(self, voice="en-US-GuyNeural"):
         self.voice = voice
+        self._model = None
 
     async def generate_voice(self, text, output_file=None):
-        """
-        Convert text to speech and save it as an MP3 file.
-        If no output_file is provided, a unique timestamp-based name is generated.
-        """
+        import edge_tts
+
+        output = Path(output_file) if output_file else new_recording_path(".mp3")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output.with_name(f".{uuid4().hex}.part")
         try:
-            if output_file is None:
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                output_file = f"audio/generated_audio_{timestamp}.mp3"
+            await edge_tts.Communicate(text, self.voice).save(str(temporary))
+            temporary.replace(output)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return str(output)
 
-            # Ensure the directory exists
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    def clone_voice(self, text, references, language):
+        """Synthesize locally after the caller has obtained XTTS license acceptance."""
+        import soundfile as sf
 
-            print("🟡 Starting TTS generation...")
-            print(f"🎙 Voice: {self.voice}")
-            print(f"📄 Text: {text}")
+        for path in references:
+            try:
+                audio = sf.info(path)
+                if audio.frames == 0:
+                    raise ValueError("fichier vide")
+            except (OSError, RuntimeError, ValueError) as error:
+                raise ValueError(f"Référence illisible : {Path(path).name}") from error
 
-            tts = edge_tts.Communicate(text, self.voice)
-            await tts.save(output_file)
+        if self._model is None:
+            import torch
+            from TTS.api import TTS
 
-            if os.path.exists(output_file):
-                print(f"✅ Audio successfully saved: {output_file}")
-            else:
-                print("❌ Error: Audio file not found after saving.")
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            previous = os.environ.get("COQUI_TOS_AGREED")
+            os.environ["COQUI_TOS_AGREED"] = "1"
+            try:
+                self._model = TTS(MODEL_NAME).to(device)
+            finally:
+                if previous is None:
+                    os.environ.pop("COQUI_TOS_AGREED", None)
+                else:
+                    os.environ["COQUI_TOS_AGREED"] = previous
 
-            return output_file
-        except Exception as e:
-            print(f"❌ Error in TTS generation: {e}")
-            return None
+        AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+        output = new_recording_path(".wav")
+        temporary = output.with_name(f".{output.stem}.part.wav")
+        try:
+            self._model.tts_to_file(
+                text=text, speaker_wav=references, language=language, file_path=str(temporary)
+            )
+            if sf.info(temporary).frames == 0:
+                raise RuntimeError("Le modèle a produit un fichier audio vide.")
+            temporary.replace(output)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return str(output)
